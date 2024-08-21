@@ -54,14 +54,14 @@ class MainWindow(QMainWindow):
 
         # Add the recommended gifts to the listWidget
         if recommended_gifts:
+            print(recommended_gifts)
             for gift in recommended_gifts:
-                item_text = f"{gift[3]} - {gift[4]} - ${float(gift[5]):.2f}"
+                item_text = f"{gift['name']} - {gift['description']} - ${gift['price']:.2f}"
                 item = QListWidgetItem(item_text)
                 self.Results_ui.listWidget.addItem(item)
 
         # Open the results window
         self.open_result_window()
-
 
     def open_result_window(self):
         self.ui.hide()
@@ -82,30 +82,39 @@ class MainWindow(QMainWindow):
             print("Selected gender:", text)
 
     def _select_gift(self, interest, gender, budget):
+    
+        print("Interest:", interest)
+        print("Gender:", gender)
+        print("Budget:", budget)
         # Establish a connection to the database
         db = sqlite3.connect('gifts.db')  # replace with your database file name
         cursor = db.cursor()
 
-        # Filter by Interest, Gender, and Budget
-        cursor.execute("SELECT * FROM gifts WHERE interest = ? AND (gender = ? OR gender = 'Unisex') AND price BETWEEN ? AND ?", (interest, gender, budget * 0.5, budget * 1.5))
+        # Filter by Interest
+        cursor.execute("SELECT * FROM gifts WHERE interest = ?", (interest,))
         gifts = cursor.fetchall()
+        print("Gifts:", gifts)
+        
+        # Filter by Gender
+        gifts = [gift for gift in gifts if gift[2] == gender or gift[2] == 'Unisex']
+
+        #the code isn't responding to this part
+        # Filter by Budget
+        min_price = budget * 0.5  # adjust the minimum price range based on the budget
+        max_price = budget * 1.2 # adjust the maximum price range based on the budget
+        gifts = [gift for gift in gifts if min_price <= gift[3] <= max_price]
 
         # Rank Gifts by Price
-        gifts.sort(key=lambda x: x[2])  # Assuming price is the 3rd column
+        gifts.sort(key=lambda x: x[3])
 
         # Select Gifts
-        recommended_gifts = gifts
-
+        recommended_gifts = []
+        for gift in gifts:
+            recommended_gifts.append({'name': gift[0], 'description': gift[1], 'price': gift[3]})
         # Close the database connection
         db.close()
+        return recommended_gifts
 
-        # Create a list of gift items to display
-        gift_items = []
-        for gift in recommended_gifts:
-            item_text = f"{gift[1]} - {gift[2]} - ${float(gift[5]):.2f}"
-            gift_items.append(item_text)
-
-        return gift_items
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()
