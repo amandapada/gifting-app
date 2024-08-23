@@ -3,7 +3,6 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidgetItem
 from PyQt5.QtCore import pyqtSlot
 from PyQt5 import uic
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QLineEdit
 import sqlite3
 
 class MainWindow(QMainWindow):
@@ -46,21 +45,45 @@ class MainWindow(QMainWindow):
         gender = self.ui.genderComboBox.currentText()
         budget = float(self.ui.budgetBox.text())
 
-        # Call the gift selection function
-        recommended_gifts = self._select_gift(interest, gender, budget)
+        if interest == "Select an interest..." or gender == "Select a Gender...":
+            print("Please select valid options.")
+            return
 
-        # Clear the listWidget
+        # Connect to the SQLite database
+        conn = sqlite3.connect('gifts.db')
+        cursor = conn.cursor()
+
+        # Prepare the SQL query
+        query = f"""
+        SELECT name, price 
+        FROM gifts 
+        WHERE interest = ? AND gender = ?
+        """
+
+        # Prepare the parameters for the query
+        params = (interest, gender)
+
+        # Execute the query with the correct number of parameters
+        cursor.execute(query, params)
+
+        gifts = cursor.fetchall()
+
+        # Filter gifts based on budget and ensure a 0.25% profit margin
+        selected_gifts = []
+        total_cost = 0
+        for gift in gifts:
+            name, price = gift
+            if total_cost + price <= budget / 1.0025:
+                selected_gifts.append(name)
+                total_cost += price
+        print(selected_gifts)
+        # Update the listWidget with the selected gifts
         self.Results_ui.listWidget.clear()
+        self.Results_ui.listWidget.addItems(selected_gifts)
 
-        # Add the recommended gifts to the listWidget
-        if recommended_gifts:
-            print(recommended_gifts)
-            for gift in recommended_gifts:
-                item_text = f"{gift['name']} - {gift['description']} - ${gift['price']:.2f}"
-                item = QListWidgetItem(item_text)
-                self.Results_ui.listWidget.addItem(item)
+        conn.close()
 
-        # Open the results window
+        # Open the results window after the selection process
         self.open_result_window()
 
     def open_result_window(self):
@@ -73,47 +96,13 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(str)
     def onInterestsChanged(self, text):
-        if text != "Select an interest...":  # assuming "Select an interest..." is the placeholder text
+        if text != "Select an interest...":
             print("Selected interest:", text)
 
     @pyqtSlot(str)
     def onGenderChanged(self, text):
-        if text != "Select a Gender...":  # assuming "Select a Gender..." is the placeholder text
+        if text != "Select a Gender...":
             print("Selected gender:", text)
-
-    def _select_gift(self, interest, gender, budget):
-    
-        print("Interest:", interest)
-        print("Gender:", gender)
-        print("Budget:", budget)
-        # Establish a connection to the database
-        db = sqlite3.connect('gifts.db')  # replace with your database file name
-        cursor = db.cursor()
-
-        # Filter by Interest
-        cursor.execute("SELECT * FROM gifts WHERE interest = ?", (interest,))
-        gifts = cursor.fetchall()
-        print("Gifts:", gifts)
-        
-        # Filter by Gender
-        gifts = [gift for gift in gifts if gift[2] == gender or gift[2] == 'Unisex']
-
-        #the code isn't responding to this part
-        # Filter by Budget
-        min_price = budget * 0.5  # adjust the minimum price range based on the budget
-        max_price = budget * 1.2 # adjust the maximum price range based on the budget
-        gifts = [gift for gift in gifts if min_price <= gift[3] <= max_price]
-
-        # Rank Gifts by Price
-        gifts.sort(key=lambda x: x[3])
-
-        # Select Gifts
-        recommended_gifts = []
-        for gift in gifts:
-            recommended_gifts.append({'name': gift[0], 'description': gift[1], 'price': gift[3]})
-        # Close the database connection
-        db.close()
-        return recommended_gifts
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
